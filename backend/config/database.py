@@ -14,7 +14,9 @@ import os
 import aiosqlite
 from loguru import logger
 
-DATABASE_PATH = os.getenv("DATABASE_PATH", "spellbee.db")
+from config.constants import DEFAULT_DATABASE_PATH, ENV_DATABASE_PATH
+
+DATABASE_PATH = os.getenv(ENV_DATABASE_PATH, DEFAULT_DATABASE_PATH)
 MIGRATION_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "migration_files")
 
 
@@ -61,3 +63,43 @@ async def run_sql_files():
         await db.commit()
 
     logger.info("All SQL files executed successfully.")
+
+
+async def init_db():
+    """Initialize the database: run migration files to create tables and seed data."""
+    await run_sql_files()
+    logger.info("Database initialized.")
+
+
+def load_query(filepath: str, query_name: str) -> str:
+    """
+    Load a named query from a .sql file.
+
+    Queries are separated by '-- name: query_name' comments.
+    """
+    sql_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "sql")
+    full_path = os.path.join(sql_dir, filepath)
+
+    with open(full_path, "r") as f:
+        content = f.read()
+
+    queries = {}
+    current_name = None
+    current_lines = []
+
+    for line in content.split("\n"):
+        if line.strip().startswith("-- name:"):
+            if current_name:
+                queries[current_name] = "\n".join(current_lines).strip()
+            current_name = line.strip().replace("-- name:", "").strip()
+            current_lines = []
+        else:
+            current_lines.append(line)
+
+    if current_name:
+        queries[current_name] = "\n".join(current_lines).strip()
+
+    if query_name not in queries:
+        raise ValueError(f"Query '{query_name}' not found in {filepath}")
+
+    return queries[query_name]
