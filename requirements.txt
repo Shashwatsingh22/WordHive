@@ -1,0 +1,4 @@
+pipecat-ai[webrtc,deepgram,groq,silero,runner]
+python-dotenv
+aiosqlite
+loguru

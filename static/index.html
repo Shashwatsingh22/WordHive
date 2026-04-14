@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WordHive — Spell Bee Voice Bot</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🐝 WordHive</h1>
+            <p class="subtitle">Voice-powered spelling game</p>
+        </header>
+
+        <div id="start-screen" class="screen active">
+            <div class="card">
+                <h2>Ready to play?</h2>
+                <p>The bot will say a word and you spell it out loud.</p>
+                <div class="input-group">
+                    <label for="player-name">Your Name</label>
+                    <input
+                        type="text"
+                        id="player-name"
+                        placeholder="Enter your name"
+                        maxlength="50"
+                        autocomplete="off"
+                    >
+                </div>
+                <button id="start-btn" onclick="startGame()">
+                    Start Game
+                </button>
+                <div id="start-error" class="error hidden"></div>
+            </div>
+        </div>
+
+        <div id="game-screen" class="screen hidden">
+            <div class="stats-bar">
+                <div class="stat">
+                    <span class="stat-label">Score</span>
+                    <span id="score" class="stat-value">0</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Correct</span>
+                    <span id="correct-count" class="stat-value correct">0</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Wrong</span>
+                    <span id="incorrect-count" class="stat-value incorrect">0</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Words</span>
+                    <span id="total-words" class="stat-value">0</span>
+                </div>
+            </div>
+
+            <div class="game-area">
+                <div id="bot-status" class="bot-status connecting">
+                    <div class="pulse"></div>
+                    <span id="bot-status-text">Connecting...</span>
+                </div>
+            </div>
+
+            <button id="leave-btn" class="btn-danger" onclick="leaveGame()">
+                End Game
+            </button>
+        </div>
+
+        <div id="end-screen" class="screen hidden">
+            <div class="card">
+                <h2>Game Over</h2>
+                <div class="final-stats">
+                    <div class="final-stat">
+                        <span class="final-label">Score</span>
+                        <span id="final-score" class="final-value">0</span>
+                    </div>
+                    <div class="final-stat">
+                        <span class="final-label">Correct</span>
+                        <span id="final-correct" class="final-value">0</span>
+                    </div>
+                    <div class="final-stat">
+                        <span class="final-label">Total</span>
+                        <span id="final-total" class="final-value">0</span>
+                    </div>
+                </div>
+                <button onclick="resetGame()">Play Again</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

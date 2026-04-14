@@ -5,19 +5,18 @@ A voice-based Spell Bee game built with **Pipecat** framework. The bot conducts 
 ## Architecture
 
 ```
-┌──────────────────────┐       WebRTC (Daily)        ┌─────────────────────┐
-│  Frontend            │ ◄─────────────────────────► │  Pipecat Server     │
-│  (HTML/CSS/JS)       │                             │  (Python)           │
-│                      │ ◄─── REST (fetch) ────────► │  FastAPI endpoints  │
-└──────────────────────┘                             └────────┬────────────┘
-                                                              │
-                                              ┌───────────────┼───────────────┐
-                                              ▼               ▼               ▼
-                                        Deepgram STT    Deepgram TTS     Groq LLM
-                                                              │
-                                                         ┌────▼─────┐
-                                                         │  SQLite  │
-                                                         └──────────┘
+┌──────────────────────┐     WebRTC (SmallWebRTC)    ┌─────────────────────┐
+│  Frontend            │ ◄──────────────────────────► │  Pipecat Server     │
+│  (HTML/CSS/JS)       │                              │  (Python)           │
+└──────────────────────┘                              └────────┬────────────┘
+                                                               │
+                                                ┌──────────────┼──────────────┐
+                                                ▼              ▼              ▼
+                                          Deepgram STT   Deepgram TTS    Groq LLM
+                                                               │
+                                                          ┌────▼─────┐
+                                                          │  SQLite  │
+                                                          └──────────┘
 ```
 
 ## Tech Stack
@@ -25,13 +24,13 @@ A voice-based Spell Bee game built with **Pipecat** framework. The bot conducts 
 | Layer       | Technology                  | Why                                                    |
 |-------------|-----------------------------|---------------------------------------------------------|
 | Voice       | Pipecat (Python)            | Real-time voice pipeline framework (project requirement)|
-| Transport   | Daily (WebRTC)              | Pipecat's native transport for browser audio streaming  |
+| Transport   | SmallWebRTCTransport        | Built-in Pipecat transport, no external service needed  |
 | STT         | Deepgram                    | Real-time streaming speech-to-text, free tier available |
 | TTS         | Deepgram                    | Low-latency text-to-speech, same provider as STT        |
 | LLM         | Groq (Llama 3.3 70B)       | Free tier, ultra-fast inference for real-time voice      |
-| Backend     | FastAPI                     | Serves REST API + spawns Pipecat bot processes          |
-| Frontend    | HTML + CSS + Vanilla JS     | Simple, no build step, uses Daily JS SDK for WebRTC     |
-| Database    | SQLite (SQLAlchemy async)   | Zero setup, sufficient for this scope                   |
+| Backend     | Pipecat Runner + FastAPI    | Built-in dev server + optional REST API endpoints       |
+| Frontend    | HTML + CSS + Vanilla JS     | Simple, no build step, raw WebRTC connection            |
+| Database    | SQLite (aiosqlite)          | Zero setup, sufficient for this scope                   |
 
 ## How It Works
 
@@ -59,19 +58,45 @@ A voice-based Spell Bee game built with **Pipecat** framework. The bot conducts 
 
 ```
 WordHive/
-├── backend/
-│   ├── bot.py              # Pipecat pipeline — voice bot logic
-│   ├── bot_runner.py       # FastAPI server — REST API + bot spawner
-│   ├── processors.py       # Custom Pipecat frame processors
-│   ├── game_state.py       # In-memory game state tracker
-│   ├── database.py         # SQLAlchemy async DB setup
-│   ├── models.py           # DB models (Player, GameSession, WordAttempt)
-│   ├── .env.example        # Environment variables template
-│   └── requirements.txt    # Python dependencies
-├── frontend/
-│   ├── index.html          # Single-page game UI
-│   ├── style.css           # Styling
-│   └── app.js              # Daily JS SDK + game logic
+├── api/
+│   └── game_routes.py          # REST API endpoints (game state, leaderboard)
+├── config/
+│   ├── constants.py            # All env keys, service configs, defaults
+│   └── database.py             # SQLite connection + migration runner
+├── enums/
+│   ├── session_status.py       # SessionStatus enum
+│   └── type_group.py           # TypeGroup enum
+├── migration_files/            # Flyway-style versioned SQL scripts
+│   ├── V1__create_type_system.sql
+│   ├── V2__create_players.sql
+│   ├── V3__create_sessions.sql
+│   ├── V4__create_word_attempts.sql
+│   └── V5__seed_session_statuses.sql
+├── models/                     # Pure dataclass models
+│   ├── player.py
+│   ├── session.py
+│   ├── type.py
+│   ├── type_group.py
+│   └── word_attempt.py
+├── processors/
+│   └── spell_bee.py            # Custom Pipecat frame processor
+├── services/                   # Business logic + DB operations
+│   ├── player_service.py
+│   ├── session_service.py
+│   └── attempt_service.py
+├── sql/                        # Runtime SQL query files
+│   ├── player_queries.sql
+│   ├── session_queries.sql
+│   └── attempt_queries.sql
+├── static/                     # Frontend UI
+│   ├── index.html
+│   ├── style.css
+│   └── app.js
+├── bot.py                      # Pipecat pipeline — main entry point
+├── bot_runner.py               # Optional FastAPI server for API endpoints
+├── game_state.py               # In-memory game state tracker
+├── .env.example
+├── requirements.txt
 ├── .gitignore
 └── README.md
 ```
@@ -80,7 +105,6 @@ WordHive/
 
 - Python 3.10+
 - API keys for:
-  - [Daily](https://dashboard.daily.co/) — WebRTC transport (free tier)
   - [Deepgram](https://console.deepgram.com/) — STT & TTS (free credits)
   - [Groq](https://console.groq.com/) — LLM inference (free tier)
 
@@ -88,7 +112,7 @@ WordHive/
 
 ```bash
 # Clone the repo
-git clone <repo-url>
+git clone https://github.com/Shashwatsingh22/WordHive.git
 cd WordHive
 
 # Create virtual environment
@@ -96,23 +120,21 @@ python3 -m venv venv
 source venv/bin/activate
 
 # Install dependencies
-pip install -r backend/requirements.txt
+pip install -r requirements.txt
 
 # Configure environment variables
-cp backend/.env.example backend/.env
-# Edit backend/.env with your API keys
+cp .env.example .env
+# Edit .env with your API keys
 
-# Run the server
-cd backend
-python bot_runner.py
+# Run the bot
+python bot.py
 ```
 
-Open `http://localhost:7860` in your browser to play.
+Open `http://localhost:7860/client` in your browser to play.
 
 ## Environment Variables
 
 ```
-DAILY_API_KEY=your_daily_api_key
 DEEPGRAM_API_KEY=your_deepgram_api_key
 GROQ_API_KEY=your_groq_api_key
 ```
