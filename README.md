@@ -35,24 +35,26 @@ A voice-based Spell Bee game built with **Pipecat** framework. The bot conducts 
 ## How It Works
 
 1. User opens the web UI → enters name → clicks "Start Game"
-2. Backend creates a Daily WebRTC room and spawns a Pipecat bot process
-3. Frontend joins the room via Daily JS SDK — live audio connection established
+2. Frontend creates a WebRTC peer connection and sends an SDP offer to `/api/offer`
+3. Pipecat spawns a new bot instance with its own pipeline and returns an SDP answer — live audio connection established
 4. **Game loop (all via voice):**
    - Bot generates a word using LLM → TTS speaks it to the user
    - User spells the word out loud → STT transcribes in real-time
-   - Custom frame processor validates the spelling
+   - LLM evaluates the spelling and calls `record_spelling_result` function to record the result
    - Bot responds with correct/incorrect → moves to next word
-5. Game state (score, words) displayed on frontend in real-time
+5. Game state (score, words) pushed to frontend in real-time via WebRTC data channel
 
 ## Key Features
 
 - **Dynamic word generation** — LLM generates words (no hardcoded list), with progressive difficulty
+- **LLM function calling** — Spelling evaluation and score tracking via Groq LLM tool calls (`record_spelling_result`)
 - **Real-time voice interaction** — WebRTC audio streaming with sub-second latency
 - **Turn-taking** — VAD (Voice Activity Detection) with 1.5s silence threshold for spelling pauses
 - **Interruption handling** — User can interrupt the bot mid-speech cleanly
-- **Custom frame processor** — Pipecat processor for game state tracking and spelling validation
-- **Live game state** — Score, correct/incorrect counts pushed to frontend via Daily app messages
+- **Custom frame processor** — Pipecat processor for game state tracking, idle timeout, and live UI updates
+- **Live game state** — Score, correct/incorrect counts pushed to frontend via WebRTC data channel
 - **Persistent storage** — Game sessions and word attempts saved to SQLite
+- **Idle timeout** — Auto-reminds inactive players, ends game after 3 unanswered prompts (2 min each)
 
 ## Project Structure
 
@@ -62,7 +64,8 @@ WordHive/
 │   └── game_routes.py          # REST API endpoints (game state, leaderboard)
 ├── config/
 │   ├── constants.py            # All env keys, service configs, defaults
-│   └── database.py             # SQLite connection + migration runner
+│   ├── database.py             # SQLite connection + migration runner
+│   └── env.py                  # Environment file loader (.env support)
 ├── enums/
 │   ├── session_status.py       # SessionStatus enum
 │   └── type_group.py           # TypeGroup enum
@@ -73,6 +76,7 @@ WordHive/
 │   ├── V4__create_word_attempts.sql
 │   └── V5__seed_session_statuses.sql
 ├── models/                     # Pure dataclass models
+│   ├── base.py
 │   ├── player.py
 │   ├── session.py
 │   ├── type.py
@@ -130,7 +134,7 @@ cp .env.example .env
 python bot.py
 ```
 
-Open `http://localhost:7860/client` in your browser to play.
+Open `http://localhost:7860` in your browser to play.
 
 ## Environment Variables
 
@@ -138,6 +142,18 @@ Open `http://localhost:7860/client` in your browser to play.
 DEEPGRAM_API_KEY=your_deepgram_api_key
 GROQ_API_KEY=your_groq_api_key
 ```
+
+## Deploy to Railway
+
+1. Push your code to GitHub
+2. Go to [railway.app](https://railway.app) → "New Project" → "Deploy from GitHub repo"
+3. Select your repo — Railway auto-detects the config from `nixpacks.toml`
+4. Add environment variables in the Railway dashboard:
+   - `DEEPGRAM_API_KEY`
+   - `GROQ_API_KEY`
+5. Railway auto-deploys on every push to `main`
+
+Railway assigns a `PORT` env var automatically — the `nixpacks.toml` and `Procfile` handle passing it to the Pipecat runner.
 
 ## License
 
