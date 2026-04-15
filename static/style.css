@@ -153,6 +153,11 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
     animation: pulse-anim 1.5s infinite;
 }
 
+.bot-status.listening .pulse {
+    background: #3498db;
+    animation: pulse-anim 1.5s infinite;
+}
+
 .bot-status.ended .pulse { background: #e74c3c; animation: none; }
 
 @keyframes pulse-anim {

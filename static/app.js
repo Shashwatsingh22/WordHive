@@ -2,6 +2,9 @@ var pc = null;
 var audioEl = null;
 var isConnecting = false;
 var gameState = { score: 0, correct_count: 0, incorrect_count: 0, total_words: 0 };
+var botAudioCtx = null;
+var botAnalyser = null;
+var botStatusInterval = null;
 
 function showScreen(id) {
     document.querySelectorAll(".screen").forEach(function (s) {
@@ -92,6 +95,17 @@ async function startGame() {
                 audioEl = new Audio();
                 audioEl.srcObject = event.streams[0];
                 audioEl.autoplay = true;
+
+                // Set up audio analysis to detect bot speaking vs listening
+                try {
+                    botAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    var source = botAudioCtx.createMediaStreamSource(event.streams[0]);
+                    botAnalyser = botAudioCtx.createAnalyser();
+                    botAnalyser.fftSize = 256;
+                    source.connect(botAnalyser);
+                } catch (e) {
+                    console.warn("Could not set up audio analysis:", e);
+                }
             }
         };
 
@@ -114,8 +128,10 @@ async function startGame() {
 
         pc.oniceconnectionstatechange = function () {
             if (pc.iceConnectionState === "connected") {
-                setBotStatus("active", "Bot is speaking...");
+                setBotStatus("listening", "Listening...");
+                startBotAudioMonitor();
             } else if (pc.iceConnectionState === "disconnected" || pc.iceConnectionState === "failed") {
+                stopBotAudioMonitor();
                 handleGameEnd();
             }
         };
@@ -163,16 +179,61 @@ async function startGame() {
 }
 
 function leaveGame() {
+    stopBotAudioMonitor();
     if (audioEl) {
         audioEl.pause();
         audioEl.srcObject = null;
         audioEl = null;
+    }
+    if (botAudioCtx) {
+        botAudioCtx.close().catch(function () {});
+        botAudioCtx = null;
+        botAnalyser = null;
     }
     if (pc) {
         pc.close();
         pc = null;
     }
     handleGameEnd();
+}
+
+function startBotAudioMonitor() {
+    if (botStatusInterval) return;
+    var dataArray = null;
+    var lastSpeaking = false;
+
+    botStatusInterval = setInterval(function () {
+        if (!botAnalyser) return;
+
+        if (!dataArray) {
+            dataArray = new Uint8Array(botAnalyser.frequencyBinCount);
+        }
+        botAnalyser.getByteFrequencyData(dataArray);
+
+        // Calculate average volume level
+        var sum = 0;
+        for (var i = 0; i < dataArray.length; i++) {
+            sum += dataArray[i];
+        }
+        var avg = sum / dataArray.length;
+
+        var isSpeaking = avg > 10;
+        if (isSpeaking !== lastSpeaking) {
+            lastSpeaking = isSpeaking;
+            if (isSpeaking) {
+                setBotStatus("active", "Bot is speaking...");
+            } else {
+                setBotStatus("listening", "Listening...");
+            }
+        }
+    }, 150);
+}
+
+function stopBotAudioMonitor() {
+    if (botStatusInterval) {
+        clearInterval(botStatusInterval);
+        botStatusInterval = null;
+    }
 }
 
 function handleGameEnd() {
